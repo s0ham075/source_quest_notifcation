@@ -2,6 +2,22 @@ const express = require('express');
 const app = express();
 require('dotenv').config();
 
+const accountSid = process.env.TWILIO_ACCOUNT_SID;
+const authToken = process.env.TWILIO_AUTH_TOKEN;
+const client = require('twilio')(accountSid, authToken);
+
+
+
+const sendmessage = (input)=>{
+  client.messages
+  .create({
+     from: 'whatsapp:+14155238886',
+     body: `${input}`,
+     to: 'whatsapp:+918850521510'
+   })
+  .then(message => console.log(message.sid));
+}
+
 const generate_llm_message = (input ) =>{
     final_result = "";
     const url = 'https://api.together.xyz/v1/chat/completions';
@@ -38,37 +54,45 @@ const options = {
 fetch(url, options)
    .then(response => response.json())
    .then(result => {
-      final_result = result.choices;
-      console.log(final_result);
+      const final_result = result.choices[0].message.content;
+      sendmessage(final_result)
+      console.log(final_result)
+      return final_result;
    })
    .catch(error => {
    console.error('Error:', error);
    });
 
-   return final_result;
 }
 
-app.post('/webhook', express.json({type: 'application/json'}), (request, response) => {
+app.post('/webhook', express.json({type: 'application/json'}),async (request, response) => {
   response.status(202).send('Accepted');
   const githubEvent = request.headers['x-github-event'];
   if (githubEvent === 'issues') {
     const data = request.body;
     const action = data.action;
     if (action === 'opened') {
-        
-        console.log(generate_llm_message(`${data.issue.title} ${data.issue.body}`).message.content);
+        txt = await generate_llm_message(`${data.issue.title} ${data.issue.body}`);
     } else if (action === 'closed') {
       console.log(`An issue was closed by ${data.issue.user.login}`);
     } else if (action === 'reopened') {
-        console.log("hello")
-        console.log(generate_llm_message(`${data.issue.title} ${data.issue.body}`).message.content);
-        
-    } else {
+      txt = await generate_llm_message(`${data.issue.title} ${data.issue.body}`);
+      
+    } 
+    else {
       console.log(`Unhandled action for the issue event: ${action}`);
     }
   } else if (githubEvent === 'ping') {
     console.log('GitHub sent the ping event');
-  } else {
+  } 
+  else if(githubEvent === 'push'){
+    const data = request.body;
+    const username = data.sender.login;
+    const tests = data.commits[0].added;
+
+    console.log(data)
+  }
+  else {
     console.log(`Unhandled event: ${githubEvent}`);
   }
 });
